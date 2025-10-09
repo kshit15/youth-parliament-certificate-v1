@@ -2,15 +2,43 @@
 <html>
 <head>
   <meta charset="utf-8" />
-  <title>Certificate Filler — precise placement</title>
+  <title>Certificate Generator — Prebaked precise placement</title>
   <style>
-    body { font-family: system-ui, Arial; margin: 18px; display:flex; gap:18px; }
-    #controls { width:300px; }
-    label { display:block; margin-top:10px; font-size:14px; }
-    input[type="text"], input[type="number"], select { width:100%; padding:6px; box-sizing:border-box; }
-    button { margin-top:10px; padding:8px 10px; cursor:pointer; }
-    canvas { border:1px solid #ccc; max-width:850px; height:auto; display:block; }
-    .hint { font-size:13px; color:#555; margin-top:6px; }
+    body {
+      font-family: system-ui, Arial;
+      margin: 18px;
+      display: flex;
+      gap: 18px;
+    }
+    #controls {
+      width: 300px;
+    }
+    label {
+      display: block;
+      margin-top: 10px;
+      font-size: 14px;
+    }
+    input[type="text"], input[type="number"], select {
+      width: 100%;
+      padding: 6px;
+      box-sizing: border-box;
+    }
+    button {
+      margin-top: 10px;
+      padding: 8px 10px;
+      cursor: pointer;
+    }
+    canvas {
+      border: 1px solid #ccc;
+      max-width: 850px;
+      height: auto;
+      display: block;
+    }
+    .hint {
+      font-size: 13px;
+      color: #555;
+      margin-top: 6px;
+    }
   </style>
 </head>
 <body>
@@ -19,7 +47,7 @@
     <h2>Fill details</h2>
 
     <label>Name
-      <input id="nameInput" type="text" placeholder="Enter your name">
+      <input id="nameInput" type="text" placeholder="Enter name">
     </label>
 
     <label>Participation
@@ -27,7 +55,7 @@
     </label>
 
     <label>Adjudged
-      <input id="adjInput" type="text" placeholder="Adjudged (e.g. Delegate of India)">
+      <input id="adjInput" type="text" placeholder="Adjudged (e.g. Best Delegate)">
     </label>
 
     <label>Font size (name)
@@ -48,10 +76,6 @@
       </select>
     </label>
 
-    <div class="hint">Drag the small circles on the certificate to position text exactly. Click text fields to change the content. Positions are saved locally.</div>
-
-    <button id="centerAll">Center fields horizontally</button>
-    <button id="resetPos">Reset positions</button>
     <button id="download">Download PNG</button>
   </div>
 
@@ -63,9 +87,9 @@
 (function(){
   const canvas = document.getElementById('c');
   const ctx = canvas.getContext('2d');
-
   const img = new Image();
-  img.src = "IMG-20250922-WA0013.jpg"; // keep file in same folder
+  img.src = "IMG-20250922-WA0013.jpg";
+
   const nameInput = document.getElementById('nameInput');
   const partInput = document.getElementById('partInput');
   const adjInput  = document.getElementById('adjInput');
@@ -73,98 +97,53 @@
   const sizeOther = document.getElementById('sizeOther');
   const fontFamily= document.getElementById('fontFamily');
 
-  // markers will be set after image loads
-  let markers = {
-    name: {x:0, y:0},
-    part: {x:0, y:0},
-    adj:  {x:0, y:0}
+  // certificate image is 986x704 pixels
+  const width = 986;
+  const height = 704;
+
+  // fixed coordinates (left-anchored, precisely placed)
+  const coords = {
+    name: { x: 539, y: 210, maxWidth: 400 },
+    part: { x: 292, y: 270, maxWidth: 500 },
+    adj:  { x: 343, y: 320, maxWidth: 500 }
   };
 
-  const storageKey = 'cert_positions_v1_' + img.src;
-
-  let dragging = null;
-  let dragOffset = {x:0,y:0};
-
   img.onload = () => {
-    // set canvas to image natural size for pixel-perfect placement
-    canvas.width = img.naturalWidth;
-    canvas.height = img.naturalHeight;
-
-    // initial/default positions (roughly placed)
-    const defaults = {
-      name: {x: canvas.width/2, y: canvas.height * 0.22},
-      part: {x: canvas.width/2, y: canvas.height * 0.36},
-      adj:  {x: canvas.width/2, y: canvas.height * 0.45}
-    };
-
-    // Load saved positions if present
-    try {
-      const saved = JSON.parse(localStorage.getItem(storageKey) || 'null');
-      markers.name = saved?.name || defaults.name;
-      markers.part = saved?.part || defaults.part;
-      markers.adj  = saved?.adj  || defaults.adj;
-    } catch {
-      markers = defaults;
-    }
-
+    canvas.width = width;
+    canvas.height = height;
     draw();
   };
 
   function draw() {
-    // high-quality rendering
-    ctx.clearRect(0,0,canvas.width,canvas.height);
-    ctx.drawImage(img, 0,0, canvas.width, canvas.height);
+    ctx.clearRect(0, 0, width, height);
+    ctx.drawImage(img, 0, 0, width, height);
 
-    // text styles
     ctx.fillStyle = "#000";
-    ctx.textAlign = "center";
-    ctx.textBaseline = "middle";
+    ctx.textBaseline = "top";
+    ctx.textAlign = "left";
 
     // draw name
     ctx.font = `${parseInt(sizeName.value,10)}px ${fontFamily.value}`;
-    wrapAndDrawCentered(nameInput.value || '', markers.name.x, markers.name.y, canvas.width * 0.8);
+    drawLeftAnchored(nameInput.value || "", coords.name);
 
     // draw participation
     ctx.font = `${parseInt(sizeOther.value,10)}px ${fontFamily.value}`;
-    wrapAndDrawCentered(partInput.value || '', markers.part.x, markers.part.y, canvas.width * 0.7);
+    drawLeftAnchored(partInput.value || "", coords.part);
 
     // draw adjudged
     ctx.font = `${parseInt(sizeOther.value,10)}px ${fontFamily.value}`;
-    wrapAndDrawCentered(adjInput.value || '', markers.adj.x, markers.adj.y, canvas.width * 0.7);
-
-    // draw draggable markers (small circles)
-    drawMarker(markers.name.x, markers.name.y, 'N');
-    drawMarker(markers.part.x, markers.part.y, 'P');
-    drawMarker(markers.adj.x, markers.adj.y, 'A');
+    drawLeftAnchored(adjInput.value || "", coords.adj);
   }
 
-  function drawMarker(x,y,label) {
-    ctx.save();
-    ctx.beginPath();
-    ctx.fillStyle = 'rgba(0,120,200,0.9)';
-    ctx.strokeStyle = '#fff';
-    ctx.lineWidth = Math.max(2, canvas.width / 800);
-    ctx.arc(x, y, Math.max(8, canvas.width/140), 0, Math.PI*2);
-    ctx.fill();
-    ctx.stroke();
-    ctx.fillStyle = '#fff';
-    ctx.font = `${Math.max(10, canvas.width/140)}px Arial`;
-    ctx.textAlign = 'center';
-    ctx.textBaseline = 'middle';
-    ctx.fillText(label, x, y);
-    ctx.restore();
-  }
-
-  // simple wrap that centers multi-line text (maxWidth in pixels)
-  function wrapAndDrawCentered(text, x, y, maxWidth) {
+  function drawLeftAnchored(text, pos) {
     if (!text) return;
     const words = text.split(/\s+/);
     const lines = [];
-    let line = '';
+    let line = "";
     for (let w of words) {
-      const test = line ? (line + ' ' + w) : w;
-      const metrics = ctx.measureText(test);
-      if (metrics.width > maxWidth && line) {
+      const test = line ? line + " " + w : w;
+      const wpx = ctx.measureText(test).width;
+      if (wpx > pos.maxWidth && line) {
         lines.push(line);
         line = w;
       } else {
@@ -174,137 +153,30 @@
     if (line) lines.push(line);
 
     const lineHeight = parseInt(ctx.font.match(/\d+/)) * 1.05;
-    const totalHeight = lines.length * lineHeight;
-    let startY = y - totalHeight/2 + lineHeight/2;
+    let y = pos.y;
     for (let ln of lines) {
-      ctx.fillText(ln, x, startY);
-      startY += lineHeight;
+      ctx.fillText(ln, pos.x, y);
+      y += lineHeight;
     }
   }
 
-  // convert mouse event coordinates to canvas coordinates (handles CSS scaling)
-  function toCanvasCoords(evt) {
-    const rect = canvas.getBoundingClientRect();
-    const scaleX = canvas.width / rect.width;
-    const scaleY = canvas.height / rect.height;
-    return {
-      x: (evt.clientX - rect.left) * scaleX,
-      y: (evt.clientY - rect.top)  * scaleY
-    };
-  }
-
-  // hit test marker
-  function hitTest(mx,my) {
-    const r = Math.max(12, canvas.width/140);
-    for (let k of ['name','part','adj']) {
-      const m = markers[k];
-      const dx = mx - m.x, dy = my - m.y;
-      if (dx*dx + dy*dy <= r*r) return k;
-    }
-    return null;
-  }
-
-  canvas.addEventListener('mousedown', (e) => {
-    const pos = toCanvasCoords(e);
-    const hit = hitTest(pos.x,pos.y);
-    if (hit) {
-      dragging = hit;
-      dragOffset.x = pos.x - markers[hit].x;
-      dragOffset.y = pos.y - markers[hit].y;
-    }
-  });
-
-  window.addEventListener('mousemove', (e) => {
-    if (!dragging) return;
-    const pos = toCanvasCoords(e);
-    markers[dragging].x = Math.max(0, Math.min(canvas.width, pos.x - dragOffset.x));
-    markers[dragging].y = Math.max(0, Math.min(canvas.height, pos.y - dragOffset.y));
-    draw();
-  });
-
-  window.addEventListener('mouseup', (e) => {
-    if (dragging) {
-      savePositions();
-      dragging = null;
-    }
-  });
-
-  // also allow touch events
-  canvas.addEventListener('touchstart', (e) => {
-    const touch = e.touches[0];
-    const pos = toCanvasCoords(touch);
-    const hit = hitTest(pos.x,pos.y);
-    if (hit) {
-      dragging = hit;
-      dragOffset.x = pos.x - markers[hit].x;
-      dragOffset.y = pos.y - markers[hit].y;
-      e.preventDefault();
-    }
-  }, {passive:false});
-
-  window.addEventListener('touchmove', (e) => {
-    if (!dragging) return;
-    const touch = e.touches[0];
-    const pos = toCanvasCoords(touch);
-    markers[dragging].x = Math.max(0, Math.min(canvas.width, pos.x - dragOffset.x));
-    markers[dragging].y = Math.max(0, Math.min(canvas.height, pos.y - dragOffset.y));
-    draw();
-    e.preventDefault();
-  }, {passive:false});
-
-  window.addEventListener('touchend', () => {
-    if (dragging) { savePositions(); dragging = null; }
-  });
-
-  // update live when inputs change
   [nameInput, partInput, adjInput, sizeName, sizeOther, fontFamily].forEach(el => {
     el.addEventListener('input', draw);
   });
 
-  // center horizontally
-  document.getElementById('centerAll').addEventListener('click', () => {
-    const cx = canvas.width / 2;
-    markers.name.x = cx;
-    markers.part.x = cx;
-    markers.adj.x  = cx;
-    savePositions();
-    draw();
-  });
-
-  document.getElementById('resetPos').addEventListener('click', () => {
-    markers = {
-      name: {x: canvas.width/2, y: canvas.height * 0.22},
-      part: {x: canvas.width/2, y: canvas.height * 0.36},
-      adj:  {x: canvas.width/2, y: canvas.height * 0.45}
-    };
-    savePositions();
-    draw();
-  });
-
-  function savePositions() {
-    try {
-      localStorage.setItem(storageKey, JSON.stringify(markers));
-    } catch (e) { /* ignore */ }
-  }
-
-  // download PNG
   document.getElementById('download').addEventListener('click', () => {
-    // redraw at full resolution one last time (already at full size)
     draw();
-    canvas.toBlob(function(blob){
-      if (!blob) return;
-      const link = document.createElement('a');
-      link.href = URL.createObjectURL(blob);
-      link.download = 'certificate.png';
-      document.body.appendChild(link);
-      link.click();
-      document.body.removeChild(link);
-      URL.revokeObjectURL(link.href);
-    }, 'image/png');
+    canvas.toBlob(blob => {
+      const a = document.createElement('a');
+      a.href = URL.createObjectURL(blob);
+      a.download = "certificate.png";
+      a.click();
+    });
   });
-
 })();
 </script>
+
 </body>
 </html>
+
 
